@@ -2,6 +2,8 @@ import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
 import * as https from 'https';
+import { CreateOffRampOrderDto } from './dto/create-offramp-order.dto';
+import { CreateCustomerDto } from './dto/create-customer.dto';
 
 @Injectable()
 export class NovacrustService {
@@ -70,7 +72,47 @@ export class NovacrustService {
         };
     }
 
-    async createCustomer(data: any) { return { data: {} }; }
+    async createOfframpOrder(data: CreateOffRampOrderDto) {
+        this.logger.log(`Mock: Creating order with data: ${JSON.stringify(data)}`);
+        // Mocking the response as requested
+        return {
+            success: true,
+            message: 'Order created successfully (Mock)',
+            data: {
+                orderId: `NC-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+                status: 'pending',
+                ...data,
+                createdAt: new Date().toISOString(),
+            }
+        };
+    }
+
+    async createCustomer(data: CreateCustomerDto) {
+        const firstNames = ['James', 'Mary', 'Robert', 'Patricia', 'John', 'Jennifer', 'Michael', 'Linda', 'William', 'Elizabeth'];
+        const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'];
+
+        const firstName = data.first_name || firstNames[Math.floor(Math.random() * firstNames.length)];
+        const lastName = data.last_name || lastNames[Math.floor(Math.random() * lastNames.length)];
+        const email = data.email_address || `${firstName.toLowerCase()}.${lastName.toLowerCase()}${Math.floor(Math.random() * 1000)}@example.com`;
+        const phone = data.phone_number || `+234${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+
+        const customer = {
+            id: `CUST-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+            first_name: firstName,
+            last_name: lastName,
+            email_address: email,
+            phone_number: phone,
+            createdAt: new Date().toISOString(),
+        };
+
+        this.logger.log(`Mock: Created customer: ${JSON.stringify(customer)}`);
+
+        return {
+            success: true,
+            message: 'Customer created successfully (Mock)',
+            data: customer
+        };
+    }
     async generateWallet(chainId: string, customerId: string) { return { data: {} }; }
     async processPayout(depositId: string) { return { data: {} }; }
 }
