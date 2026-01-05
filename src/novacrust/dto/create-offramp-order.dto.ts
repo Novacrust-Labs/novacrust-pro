@@ -13,6 +13,12 @@ export class CreateOffRampOrderDto {
     @ApiProperty({ description: 'The network the crypto is on (e.g., ETH, BSC, LISK)', example: 'ETH' })
     network: string;
 
+    @ApiProperty({ description: 'The crypto network ID (UUID)', example: 'aff4b3da-fd7b-4202-b490-bda42e845173', required: false })
+    crypto_network_id?: string;
+
+    @ApiProperty({ description: 'The amount of crypto to sell', example: '100.00' })
+    crypto_amount: string;
+
     @ApiProperty({
         description: 'The source of the payment',
         enum: PaymentFrom,
@@ -29,6 +35,9 @@ export class CreateOffRampOrderDto {
     @ApiProperty({ description: 'The method of payout (e.g., bank_transfer)', example: 'bank_transfer' })
     payout_method: string;
 
+    @ApiProperty({ description: 'The value to be paid out in fiat', example: '150000.00' })
+    payout_value: string;
+
     @ApiProperty({
         description: 'Additional metadata for the payout method (e.g., account number, bank code)',
         example: { account_number: '1234567890', bank_code: '058' }
@@ -43,4 +52,5 @@ export class CreateOffRampOrderDto {
 
     @ApiProperty({ description: 'The merchant customer ID', example: 'CUST-123456', required: false })
     merchant_customer_id?: string;
+
 }

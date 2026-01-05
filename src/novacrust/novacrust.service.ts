@@ -4,6 +4,8 @@ import axios from 'axios';
 import * as https from 'https';
 import { CreateOffRampOrderDto } from './dto/create-offramp-order.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
+import { GenerateWalletDto } from './dto/generate-wallet.dto';
+import { DepositWebhookDto } from './dto/deposit-webhook.dto';
 
 @Injectable()
 export class NovacrustService {
@@ -113,6 +115,35 @@ export class NovacrustService {
             data: customer
         };
     }
-    async generateWallet(chainId: string, customerId: string) { return { data: {} }; }
+    async generateWallet(data: GenerateWalletDto) {
+        try {
+            const url = `${this.baseUrl}/business/open/crypto/wallet`;
+            const response = await axios.post(url, data, {
+                headers: {
+                    Authorization: `Bearer ${this.apiKey}`,
+                },
+                httpsAgent: this.httpsAgent,
+            });
+            return response.data;
+        } catch (error) {
+            const status = error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
+            const message = error.response?.data?.message || error.message;
+            this.logger.error(`Error generating wallet: ${message}`);
+            throw new HttpException(message, status);
+        }
+    }
     async processPayout(depositId: string) { return { data: {} }; }
+
+    async handleDepositWebhook(data: DepositWebhookDto) {
+        this.logger.log(`Received deposit webhook: ${JSON.stringify(data)}`);
+        return {
+            success: true,
+            message: 'Webhook received and processed successfully',
+            data: {
+                event: data.event,
+                transaction_reference: data.transaction_reference,
+                timestamp: new Date().toISOString()
+            }
+        };
+    }
 }

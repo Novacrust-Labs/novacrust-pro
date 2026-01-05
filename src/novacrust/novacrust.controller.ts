@@ -3,6 +3,8 @@ import { NovacrustService } from './novacrust.service';
 import { ApiTags, ApiOperation, ApiQuery, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { CreateOffRampOrderDto } from './dto/create-offramp-order.dto';
 import { CreateCustomerDto } from './dto/create-customer.dto';
+import { GenerateWalletDto } from './dto/generate-wallet.dto';
+import { DepositWebhookDto } from './dto/deposit-webhook.dto';
 
 @Controller('novacrust')
 export class NovacrustController {
@@ -51,6 +53,30 @@ export class NovacrustController {
     @ApiResponse({ status: 201, description: 'Order successfully initiated.' })
     async createOfframpOrder(@Body() createOrderDto: CreateOffRampOrderDto) {
         return await this.novacrustService.createOfframpOrder(createOrderDto);
+    }
+
+    @ApiTags('General')
+    @Post('webhook/deposit')
+    @ApiOperation({
+        summary: 'Receive deposit details (Webhook)',
+        description: 'Endpoint to receive real-time notifications about successful crypto funding/deposits. This is used to track incoming crypto payments and update user balances.'
+    })
+    @ApiBody({ type: DepositWebhookDto })
+    @ApiResponse({ status: 200, description: 'Webhook acknowledged.' })
+    async handleDepositWebhook(@Body() depositWebhookDto: DepositWebhookDto) {
+        return await this.novacrustService.handleDepositWebhook(depositWebhookDto);
+    }
+
+    @ApiTags('Off-ramp')
+    @Post('wallet/generate')
+    @ApiOperation({
+        summary: 'Generate crypto wallet',
+        description: 'Generate a new crypto wallet address for a customer on a specific network. This is typically used to provide a deposit address for off-ramping.'
+    })
+    @ApiBody({ type: GenerateWalletDto })
+    @ApiResponse({ status: 201, description: 'Wallet successfully generated.' })
+    async generateWallet(@Body() generateWalletDto: GenerateWalletDto) {
+        return await this.novacrustService.generateWallet(generateWalletDto);
     }
 
 }
