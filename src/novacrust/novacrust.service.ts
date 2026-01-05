@@ -134,14 +134,80 @@ export class NovacrustService {
     }
     async processPayout(depositId: string) { return { data: {} }; }
 
+    async createBeneficiary(data: any) {
+        try {
+            const url = `${this.baseUrl}/business/open/beneficiary`;
+            const response = await axios.post(url, data, {
+                headers: {
+                    Authorization: `Bearer ${this.apiKey}`,
+                },
+                httpsAgent: this.httpsAgent,
+            });
+            return response.data;
+        } catch (error) {
+            const status = error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
+            const message = error.response?.data?.message || error.message;
+            this.logger.error(`Error creating beneficiary: ${message}`);
+            throw new HttpException(message, status);
+        }
+    }
+
+    async initiatePayout(data: any) {
+        try {
+            const url = `${this.baseUrl}/business/open/payouts`;
+            const response = await axios.post(url, data, {
+                headers: {
+                    Authorization: `Bearer ${this.apiKey}`,
+                },
+                httpsAgent: this.httpsAgent,
+            });
+            return response.data;
+        } catch (error) {
+            const status = error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
+            const message = error.response?.data?.message || error.message;
+            this.logger.error(`Error initiating payout: ${message}`);
+            throw new HttpException(message, status);
+        }
+    }
+
     async handleDepositWebhook(data: DepositWebhookDto) {
         this.logger.log(`Received deposit webhook: ${JSON.stringify(data)}`);
+
+        // 1. Create Beneficiary (Mocking metadata extraction for now)
+        // In a real scenario, you'd fetch the order details associated with the wallet/user
+        const beneficiaryData = {
+            currency: 'ngn', // Defaulting to NGN for now as per example
+            metadata: {
+                name: `${data.wallet.user.first_name} ${data.wallet.user.last_name}`,
+                account_number: '01000000010', // Placeholder
+                bank_code: '066' // Placeholder
+            },
+            payout_method_id: 'aff4b3da-fd7b-4202-b490-bda42e845173' // Mock UUID
+        };
+
+        const beneficiaryResponse = await this.createBeneficiary(beneficiaryData);
+        const beneficiaryId = beneficiaryResponse?.data?.id || 'MOCK_BENEFICIARY_ID';
+
+        // 2. Initiate Payout
+        const payoutData = {
+            currency: 'ngn',
+            beneficiary_id: beneficiaryId,
+            payout_method_id: 'aff4b3da-fd7b-4202-b490-bda42e845173', // Mock UUID
+            amount: data.amount, // Using the amount from the webhook
+            description: 'Order Payout',
+            reference: data.transaction_reference
+        };
+
+        const payoutResponse = await this.initiatePayout(payoutData);
+
         return {
             success: true,
-            message: 'Webhook received and processed successfully',
+            message: 'Webhook processed and payout initiated',
             data: {
                 event: data.event,
                 transaction_reference: data.transaction_reference,
+                beneficiary_id: beneficiaryId,
+                payout_id: payoutResponse?.data?.id || 'MOCK_PAYOUT_ID',
                 timestamp: new Date().toISOString()
             }
         };

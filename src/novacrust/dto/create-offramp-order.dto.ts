@@ -53,4 +53,6 @@ export class CreateOffRampOrderDto {
     @ApiProperty({ description: 'The merchant customer ID', example: 'CUST-123456', required: false })
     merchant_customer_id?: string;
 
+    @ApiProperty({ description: 'The payment method ID (UUID)', example: 'aff4b3da-fd7b-4202-b490-bda42e845173', required: false })
+    payment_method_id?: string;
 }
