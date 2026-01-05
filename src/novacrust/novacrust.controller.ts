@@ -14,26 +14,16 @@ export class NovacrustController {
     }
 
     @Get('currencies')
-    @ApiOperation({ summary: 'List supported fiat currencies', description: 'Retrieve a list of supported fiat currencies for payouts calculation.' })
+    @ApiOperation({ summary: 'List supported fiat currencies and country codes', description: 'Retrieve a list of supported fiat currencies and their corresponding country codes for payouts calculation.' })
     async getCurrencies() {
         return await this.novacrustService.getSupportedCurrencies();
     }
 
     @Get('payout-methods')
-    @ApiOperation({ summary: 'Get payout methods', description: 'Retrieve available payout methods for a currency.' })
-    @ApiQuery({ name: 'currency', required: true, description: 'Currency code (e.g. NGN)', example: 'NGN' })
-    async getPayoutMethods(@Query('currency') currency: string) {
-        return await this.novacrustService.getPayoutMethods(currency);
+    @ApiOperation({ summary: 'Get payout methods', description: 'Retrieve available payout methods for a country.' })
+    @ApiQuery({ name: 'countryCode', required: true, description: 'Country code (e.g. NG)', example: 'NG' })
+    async getPayoutMethods(@Query('countryCode') countryCode: string) {
+        return await this.novacrustService.getPayoutMethods(countryCode);
     }
 
-    @Get('payout-metadata')
-    @ApiOperation({ summary: 'Get payout method metadata', description: 'Retrieve required fields for a specific payout method.' })
-    @ApiQuery({ name: 'currency', required: true, description: 'Currency code (e.g. NGN)', example: 'NGN' })
-    @ApiQuery({ name: 'method', required: true, description: 'Payment method (e.g. bank_transfer)', example: 'bank_transfer' })
-    async getPayoutMetadata(
-        @Query('currency') currency: string,
-        @Query('method') method: string,
-    ) {
-        return await this.novacrustService.getPayoutMethodMetadata(currency, method);
-    }
 }

@@ -38,9 +38,9 @@ export class NovacrustService {
         }
     }
 
-    async getPayoutMethods(currency: string) {
+    async getPayoutMethods(countryCode: string) {
         try {
-            const url = `${this.baseUrl}/business/open/payouts/list/all?currency=${currency}`;
+            const url = `${this.baseUrl}/business/open/payout_methods?country_code=${countryCode}`;
             const response = await axios.get(url, {
                 headers: {
                     Authorization: `Bearer ${this.apiKey}`,
@@ -56,28 +56,16 @@ export class NovacrustService {
         }
     }
 
-    async getPayoutMethodMetadata(currency: string, method: string) {
-        try {
-            const url = `${this.baseUrl}/business/open/fiat/metadata?currency=${currency}&paymentMethod=${method}`;
-            const response = await axios.get(url, {
-                headers: {
-                    Authorization: `Bearer ${this.apiKey}`,
-                },
-                httpsAgent: this.httpsAgent,
-            });
-            return response.data;
-        } catch (error) {
-            const status = error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
-            const message = error.response?.data?.message || error.message;
-            this.logger.error(`Error fetching payout metadata: ${message}`);
-            throw new HttpException(message, status);
-        }
-    }
 
     async getSupportedCurrencies() {
         return {
             success: true,
-            data: ['NGN', 'KES', 'GHS', 'ZAR', 'XOF'],
+            data: [
+                { currency: 'NGN', countryCode: 'NG' },
+                { currency: 'KES', countryCode: 'KE' },
+                { currency: 'GHS', countryCode: 'GH' },
+                { currency: 'ZAR', countryCode: 'ZA' },
+            ],
             message: 'Supported currencies retrieved successfully'
         };
     }
