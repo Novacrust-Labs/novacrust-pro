@@ -90,30 +90,56 @@ export class NovacrustService {
     }
 
     async createCustomer(data: CreateCustomerDto) {
-        const firstNames = ['James', 'Mary', 'Robert', 'Patricia', 'John', 'Jennifer', 'Michael', 'Linda', 'William', 'Elizabeth'];
-        const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'];
+        try {
+            const firstNames = ['James', 'Mary', 'Robert', 'Patricia', 'John', 'Jennifer', 'Michael', 'Linda', 'William', 'Elizabeth'];
+            const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'];
+            const cities = ['Lagos', 'Ikeja', 'Abuja', 'Kano', 'Ibadan', 'Port Harcourt'];
+            const states = ['Lagos', 'Federal Capital Territory', 'Kano', 'Oyo', 'Rivers'];
 
-        const firstName = data.first_name || firstNames[Math.floor(Math.random() * firstNames.length)];
-        const lastName = data.last_name || lastNames[Math.floor(Math.random() * lastNames.length)];
-        const email = data.email_address || `${firstName.toLowerCase()}.${lastName.toLowerCase()}${Math.floor(Math.random() * 1000)}@example.com`;
-        const phone = data.phone_number || `+234${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+            const firstName = data.first_name || firstNames[Math.floor(Math.random() * firstNames.length)];
+            const lastName = data.last_name || lastNames[Math.floor(Math.random() * lastNames.length)];
+            const email = data.email || data.email_address || `${firstName.toLowerCase()}.${lastName.toLowerCase()}${Math.floor(Math.random() * 1000)}@example.com`;
+            const phone = data.phone_number || `+234${Math.floor(7000000000 + Math.random() * 2000000000)}`;
+            const country = data.country || 'NG';
+            const city = data.city || cities[Math.floor(Math.random() * cities.length)];
+            const state = data.state || states[Math.floor(Math.random() * states.length)];
+            const address = data.address || `${Math.floor(Math.random() * 100) + 1} Random Street`;
+            const postalCode = data.postal_code || `${Math.floor(100000 + Math.random() * 900000)}`;
+            const customerType = data.customer_type || 'INDIVIDUAL';
+            const kycMetadata = data.kyc_metadata || {
+                id_type: 'NIN',
+                id_number: `${Math.floor(10000000000 + Math.random() * 90000000000)}`
+            };
 
-        const customer = {
-            id: `CUST-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
-            first_name: firstName,
-            last_name: lastName,
-            email_address: email,
-            phone_number: phone,
-            createdAt: new Date().toISOString(),
-        };
+            const payload = {
+                first_name: firstName,
+                last_name: lastName,
+                email: email,
+                phone_number: phone,
+                country: country,
+                city: city,
+                state: state,
+                address: address,
+                postal_code: postalCode,
+                customer_type: customerType,
+                kyc_metadata: kycMetadata
+            };
 
-        this.logger.log(`Mock: Created customer: ${JSON.stringify(customer)}`);
-
-        return {
-            success: true,
-            message: 'Customer created successfully (Mock)',
-            data: customer
-        };
+            const url = `${this.baseUrl}/business/open/customer`;
+            const response = await axios.post(url, payload, {
+                headers: {
+                    Authorization: `Bearer ${this.apiKey}`,
+                },
+                httpsAgent: this.httpsAgent,
+            });
+            return response.data;
+        } catch (error) {
+            const status = error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
+            const message = error.response?.data?.message || error.message;
+            const validationErrors = error.response?.data?.errors || error.response?.data;
+            this.logger.error(`Error creating customer: ${message}. Details: ${JSON.stringify(validationErrors)}`);
+            throw new HttpException(message, status);
+        }
     }
     async generateWallet(data: GenerateWalletDto) {
         try {
