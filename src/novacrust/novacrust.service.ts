@@ -212,4 +212,22 @@ export class NovacrustService {
             }
         };
     }
+
+    async getExchangeRate(fromCurrency: string, toCurrency: string, amount: number) {
+        try {
+            const url = `${this.baseUrl}/business/open/misc/exchange-rate?from_currency=${fromCurrency}&to_currency=${toCurrency}&amount=${amount}`;
+            const response = await axios.get(url, {
+                headers: {
+                    Authorization: `Bearer ${this.apiKey}`,
+                },
+                httpsAgent: this.httpsAgent,
+            });
+            return response.data;
+        } catch (error) {
+            const status = error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
+            const message = error.response?.data?.message || error.message;
+            this.logger.error(`Error fetching exchange rate: ${message}`);
+            throw new HttpException(message, status);
+        }
+    }
 }

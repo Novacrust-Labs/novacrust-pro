@@ -79,4 +79,21 @@ export class NovacrustController {
         return await this.novacrustService.generateWallet(generateWalletDto);
     }
 
+    @ApiTags('General')
+    @Get('open/misc/exchange-rate')
+    @ApiOperation({
+        summary: 'Check exchange rate',
+        description: 'Retrieve the current exchange rate between two currencies for a specific amount. This is useful for calculating the expected payout before initiating an order.'
+    })
+    @ApiQuery({ name: 'from_currency', required: true, description: 'Source currency (e.g. usd)', example: 'usd' })
+    @ApiQuery({ name: 'to_currency', required: true, description: 'Target currency (e.g. ngn)', example: 'ngn' })
+    @ApiQuery({ name: 'amount', required: true, type: Number, description: 'Amount to convert', example: 1 })
+    @ApiResponse({ status: 200, description: 'Exchange rate successfully retrieved.' })
+    async getExchangeRate(
+        @Query('from_currency') fromCurrency: string,
+        @Query('to_currency') toCurrency: string,
+        @Query('amount') amount: number
+    ) {
+        return await this.novacrustService.getExchangeRate(fromCurrency, toCurrency, amount);
+    }
 }
