@@ -9,6 +9,7 @@ import { Wallet } from './database/entities/wallet.entity.js';
 import { Order } from './database/entities/order.entity.js';
 import { Deposit } from './database/entities/deposit.entity.js';
 import { Payout } from './database/entities/payout.entity.js';
+import { MailModule } from './mail/mail.module.js';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { Payout } from './database/entities/payout.entity.js';
       inject: [ConfigService],
     }),
     NovacrustModule,
+    MailModule,
   ],
   controllers: [AppController],
   providers: [AppService],

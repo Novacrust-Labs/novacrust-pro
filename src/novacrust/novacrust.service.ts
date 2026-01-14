@@ -13,6 +13,7 @@ import { Wallet } from '../database/entities/wallet.entity.js';
 import { Order } from '../database/entities/order.entity.js';
 import { Deposit } from '../database/entities/deposit.entity.js';
 import { Payout } from '../database/entities/payout.entity.js';
+import { MailService } from '../mail/mail.service.js';
 
 @Injectable()
 export class NovacrustService {
@@ -25,6 +26,7 @@ export class NovacrustService {
 
     constructor(
         private readonly configService: ConfigService,
+        private readonly mailService: MailService,
         @InjectRepository(Customer)
         private customerRepository: Repository<Customer>,
         @InjectRepository(Wallet)
@@ -109,11 +111,25 @@ export class NovacrustService {
             payout_currency: data.payout_currency,
             payout_value: parseFloat(data.payout_value),
             payout_method: data.payout_method,
-            payout_metadata: data.payout_method_metadata,
+            payout_metadata: data.payout_method_metadata || {},
+            recipient_email_address: data.recipient_email_address,
+            recipient_phone_number: data.recipient_phone_number,
             status: 'PENDING',
         });
 
         const savedOrder = await this.orderRepository.save(order);
+
+        // Send order creation email
+        try {
+            await this.mailService.sendMail(
+                data.recipient_email_address,
+                'Order Created Successfully',
+                `<h1>Order Created</h1><p>Your off-ramp order for ${data.crypto_amount} ${data.crypto} has been created. Your order ID is ${savedOrder.id}.</p>`,
+                `Order Created: Your off-ramp order for ${data.crypto_amount} ${data.crypto} has been created. Your order ID is ${savedOrder.id}.`
+            );
+        } catch (error) {
+            this.logger.error(`Failed to send order creation email: ${error.message}`);
+        }
 
         return {
             success: true,
@@ -388,6 +404,25 @@ export class NovacrustService {
         order.status = 'COMPLETED';
         if (!order.tx_reference) order.tx_reference = data.transaction_reference;
         await this.orderRepository.save(order);
+
+        // Send payment success email
+        try {
+            await this.mailService.sendPayoutSuccessEmail(
+                order.recipient_email_address || data.wallet.user.email,
+                {
+                    userName: order.customer?.first_name || data.wallet.user.first_name || 'Customer',
+                    amount: order.payout_value.toString(),
+                    currency: order.payout_currency,
+                    payoutMethod: order.payout_method,
+                    beneficiaryName: order.payout_metadata?.name || `${data.wallet.user.first_name} ${data.wallet.user.last_name}`,
+                    reference: data.transaction_reference,
+                    dateTime: new Date().toISOString(),
+                    dashboardLink: 'https://novacrust.com/dashboard', // Placeholder
+                }
+            );
+        } catch (error) {
+            this.logger.error(`Failed to send payment success email: ${error.message}`);
+        }
 
         return {
             success: true,

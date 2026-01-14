@@ -44,6 +44,12 @@ export class Order {
     @Column({ nullable: true })
     tx_reference: string;
 
+    @Column({ nullable: true })
+    recipient_email_address: string;
+
+    @Column({ nullable: true })
+    recipient_phone_number: string;
+
     @CreateDateColumn()
     created_at: Date;
 
