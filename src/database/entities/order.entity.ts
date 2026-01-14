@@ -41,6 +41,9 @@ export class Order {
     @Column({ default: 'PENDING' })
     status: string;
 
+    @Column({ nullable: true })
+    tx_reference: string;
+
     @CreateDateColumn()
     created_at: Date;
 

@@ -260,86 +260,143 @@ export class NovacrustService {
         }
     }
 
+    async getTransactionByReference(reference: string) {
+        try {
+            const url = `${this.baseUrl}/business/open/transactions/wallet?reference=${reference}`;
+            const response = await axios.get(url, {
+                headers: {
+                    Authorization: `Bearer ${this.apiKey}`,
+                },
+                httpsAgent: this.httpsAgent,
+            });
+            return response.data;
+        } catch (error) {
+            const status = error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
+            const message = error.response?.data?.message || error.message;
+            this.logger.error(`Error fetching transaction by reference: ${message}`);
+            throw new HttpException(message, status);
+        }
+    }
+
     async handleDepositWebhook(data: DepositWebhookDto) {
         this.logger.log(`Received deposit webhook: ${JSON.stringify(data)}`);
 
-        // 0. Persist Deposit to DB
+        // 1. Fetch transaction details from Novacrust API for verification
+        const transactionResponse = await this.getTransactionByReference(data.transaction_reference);
+        const transaction = transactionResponse?.data || transactionResponse;
+
+        if (!transaction) {
+            this.logger.error(`Transaction verification failed - No data returned for reference: ${data.transaction_reference}`);
+            throw new HttpException(`Transaction verification failed: Reference ${data.transaction_reference} not found in Novacrust`, HttpStatus.NOT_FOUND);
+        }
+
+        // 2. Identify associated wallet and order
         const wallet = await this.walletRepository.findOne({
             where: { address: data.wallet.deposit_address },
             relations: ['customer']
         });
 
-        // Find associated order (logic can be refined: latest pending order for customer)
-        let order: Order | null = null;
-        if (wallet?.customer) {
+        // Search for order by transaction reference first, then fall back to wallet-based search
+        let order: Order | null = await this.orderRepository.findOne({
+            where: { tx_reference: data.transaction_reference },
+            relations: ['customer']
+        });
+
+        if (!order && wallet?.customer) {
             order = await this.orderRepository.findOne({
                 where: { customer: { id: wallet.customer.id }, status: 'PENDING' },
                 order: { created_at: 'DESC' }
             });
         }
 
+        // 3. Amount Correlation Check (Webhook vs API vs Order)
+        const webhookAmount = parseFloat(data.amount);
+        const apiAmount = parseFloat(transaction.amount || transaction.crypto_amount);
+        const orderAmount = order ? parseFloat(order.crypto_amount.toString()) : null;
+
+        this.logger.log(`Correlation Check - Webhook: ${webhookAmount}, API: ${apiAmount}, Order: ${orderAmount}`);
+
+        if (webhookAmount !== apiAmount) {
+            this.logger.error(`Amount mismatch: Webhook (${webhookAmount}) vs API (${apiAmount})`);
+            this.logger.debug(`Mismatch details - Webhook data: ${JSON.stringify(data)}, API data: ${JSON.stringify(transaction)}`);
+            throw new HttpException(`Transaction amount mismatch: Webhook received ${webhookAmount}, but API reported ${apiAmount}`, HttpStatus.BAD_REQUEST);
+        }
+
+        if (order && Math.abs(webhookAmount - orderAmount!) > 0.00000001) { // Floating point precision check
+            this.logger.warn(`Amount mismatch for order: Webhook (${webhookAmount}) vs Order (${orderAmount})`);
+            // We might want to handle this differently, but for now we'll log it and possibly update order?
+            // Actually, for off-ramping, the received amount is what matters.
+        }
+
+        // 4. Persist Deposit to DB
         const deposit = this.depositRepository.create({
             order: order || undefined,
             wallet: wallet || undefined,
             tx_reference: data.transaction_reference,
-            tx_hash: data.network_txid,
-            amount: parseFloat(data.amount),
-            fee: parseFloat(data.fee),
+            tx_hash: data.network_txid || transaction.tx_hash || transaction.hash,
+            amount: webhookAmount,
+            fee: parseFloat(data.fee || transaction.fee || '0'),
             status: data.status,
-            raw_payload: data,
+            raw_payload: { webhook: data, api: transaction },
         });
         const savedDeposit = await this.depositRepository.save(deposit);
 
-        // 1. Create Beneficiary (Mocking metadata extraction for now)
+        // 5. Create Beneficiary (Using dynamic data from order)
+        if (!order) {
+            this.logger.error(`Order link failed - No pending order found for wallet: ${data.wallet.deposit_address} or reference: ${data.transaction_reference}`);
+            throw new HttpException('No associated pending order found for this deposit', HttpStatus.NOT_FOUND);
+        }
+
         const beneficiaryData = {
-            currency: 'ngn', // Defaulting to NGN for now as per example
-            metadata: {
-                name: `${data.wallet.user.first_name} ${data.wallet.user.last_name}`,
-                account_number: '01000000010', // Placeholder
-                bank_code: '066' // Placeholder
-            },
-            payout_method_id: 'aff4b3da-fd7b-4202-b490-bda42e845173' // Mock UUID
+            currency: order.payout_currency.toLowerCase(),
+            metadata: order.payout_metadata,
+            payout_method_id: order.payout_method
         };
 
         const beneficiaryResponse = await this.createBeneficiary(beneficiaryData);
-        const beneficiaryId = beneficiaryResponse?.data?.id || 'MOCK_BENEFICIARY_ID';
+        const beneficiaryId = beneficiaryResponse?.data?.uuid || beneficiaryResponse?.uuid || beneficiaryResponse?.data?.id;
 
-        // 2. Initiate Payout
+        if (!beneficiaryId) {
+            this.logger.error(`Beneficiary creation failed - Could not extract ID from response: ${JSON.stringify(beneficiaryResponse)}`);
+            throw new HttpException('Failed to create beneficiary for payout. Please check beneficiary details.', HttpStatus.BAD_REQUEST);
+        }
+
+        // 6. Initiate Payout
         const payoutData = {
-            currency: 'ngn',
+            currency: beneficiaryData.currency,
             beneficiary_id: beneficiaryId,
-            payout_method_id: 'aff4b3da-fd7b-4202-b490-bda42e845173', // Mock UUID
-            amount: data.amount, // Using the amount from the webhook
-            description: 'Order Payout',
-            reference: data.transaction_reference
+            payout_method_id: beneficiaryData.payout_method_id,
+            amount: order.payout_value,
+            description: `Order Payout - ${data.transaction_reference}`,
+            reference: `PAY-${data.transaction_reference}`
         };
 
         const payoutResponse = await this.initiatePayout(payoutData);
+        const novacrustPayoutId = payoutResponse?.data?.uuid || payoutResponse?.uuid || payoutResponse?.data?.id;
 
-        // 3. Persist Payout to DB
+        // 7. Persist Payout to DB
         const payout = this.payoutRepository.create({
             deposit: savedDeposit,
             beneficiary_id: beneficiaryId,
-            novacrust_payout_id: payoutResponse?.data?.id,
-            amount: parseFloat(data.amount),
+            novacrust_payout_id: novacrustPayoutId,
+            amount: parseFloat(order.payout_value.toString()),
             status: 'PENDING'
         });
         await this.payoutRepository.save(payout);
 
-        // Update order status if linked
-        if (order) {
-            order.status = 'COMPLETED';
-            await this.orderRepository.save(order);
-        }
+        // 8. Update order status
+        order.status = 'COMPLETED';
+        if (!order.tx_reference) order.tx_reference = data.transaction_reference;
+        await this.orderRepository.save(order);
 
         return {
             success: true,
-            message: 'Webhook processed, data persisted and payout initiated',
+            message: 'Webhook verified, data persisted and payout initiated',
             data: {
                 event: data.event,
                 transaction_reference: data.transaction_reference,
                 deposit_id: savedDeposit.id,
-                payout_id: payoutResponse?.data?.id || 'MOCK_PAYOUT_ID',
+                payout_id: novacrustPayoutId,
                 timestamp: new Date().toISOString()
             }
         };
