@@ -19,6 +19,9 @@ export class CreateOffRampOrderDto {
     @ApiProperty({ description: 'The amount of crypto to sell', example: '100.00' })
     crypto_amount: string;
 
+    @ApiProperty({ description: 'The crypto address to receive funds (if applicable)', example: '0x123...', required: false })
+    crypto_address?: string;
+
     @ApiProperty({
         description: 'The source of the payment',
         enum: PaymentFrom,

@@ -8,9 +8,6 @@ export class CreateCustomerDto {
     last_name?: string;
 
     @ApiProperty({ description: 'The email address of the customer', example: 'john.doe@example.com', required: false })
-    email_address?: string;
-
-    @ApiProperty({ description: 'The email address of the customer', example: 'john.doe@example.com', required: false })
     email?: string;
 
     @ApiProperty({ description: 'The phone number of the customer', example: '+2348123456789', required: false })

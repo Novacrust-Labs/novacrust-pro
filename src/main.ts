@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { AppModule } from './app.module';
+import { AppModule } from './app.module.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -8,8 +8,8 @@ async function bootstrap() {
   app.setGlobalPrefix('api/v1');
 
   const config = new DocumentBuilder()
-    .setTitle('Novacrust Checkout Pro')
-    .setDescription('The Novacrust Checkout Pro API description')
+    .setTitle('Novacrust Pro Checkout API')
+    .setDescription('The Novacrust Pro Checkout API description')
     .setVersion('1.0')
     .build();
   const document = SwaggerModule.createDocument(app, config);

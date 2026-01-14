@@ -1,11 +1,18 @@
 import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import axios from 'axios';
 import * as https from 'https';
-import { CreateOffRampOrderDto } from './dto/create-offramp-order.dto';
-import { CreateCustomerDto } from './dto/create-customer.dto';
-import { GenerateWalletDto } from './dto/generate-wallet.dto';
-import { DepositWebhookDto } from './dto/deposit-webhook.dto';
+import { CreateOffRampOrderDto } from './dto/create-offramp-order.dto.js';
+import { CreateCustomerDto } from './dto/create-customer.dto.js';
+import { GenerateWalletDto } from './dto/generate-wallet.dto.js';
+import { DepositWebhookDto } from './dto/deposit-webhook.dto.js';
+import { Customer } from '../database/entities/customer.entity.js';
+import { Wallet } from '../database/entities/wallet.entity.js';
+import { Order } from '../database/entities/order.entity.js';
+import { Deposit } from '../database/entities/deposit.entity.js';
+import { Payout } from '../database/entities/payout.entity.js';
 
 @Injectable()
 export class NovacrustService {
@@ -18,6 +25,16 @@ export class NovacrustService {
 
     constructor(
         private readonly configService: ConfigService,
+        @InjectRepository(Customer)
+        private customerRepository: Repository<Customer>,
+        @InjectRepository(Wallet)
+        private walletRepository: Repository<Wallet>,
+        @InjectRepository(Order)
+        private orderRepository: Repository<Order>,
+        @InjectRepository(Deposit)
+        private depositRepository: Repository<Deposit>,
+        @InjectRepository(Payout)
+        private payoutRepository: Repository<Payout>,
     ) {
         this.baseUrl = this.configService.get<string>('NOVACRUST_API_URL')!;
         this.apiKey = this.configService.get<string>('NOVACRUST_API_KEY')!;
@@ -75,17 +92,33 @@ export class NovacrustService {
     }
 
     async createOfframpOrder(data: CreateOffRampOrderDto) {
-        this.logger.log(`Mock: Creating order with data: ${JSON.stringify(data)}`);
-        // Mocking the response as requested
+        this.logger.log(`Creating order with data: ${JSON.stringify(data)}`);
+
+        // Find customer if merchant_customer_id is provided
+        let customer: Customer | null = null;
+        if (data.merchant_customer_id) {
+            customer = await this.customerRepository.findOne({ where: { novacrust_customer_id: data.merchant_customer_id } });
+        }
+
+        const order = this.orderRepository.create({
+            customer: customer || undefined,
+            crypto_currency: data.crypto,
+            crypto_amount: parseFloat(data.crypto_amount),
+            crypto_address: data.crypto_address,
+            network: data.network,
+            payout_currency: data.payout_currency,
+            payout_value: parseFloat(data.payout_value),
+            payout_method: data.payout_method,
+            payout_metadata: data.payout_method_metadata,
+            status: 'PENDING',
+        });
+
+        const savedOrder = await this.orderRepository.save(order);
+
         return {
             success: true,
-            message: 'Order created successfully (Mock)',
-            data: {
-                orderId: `NC-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
-                status: 'pending',
-                ...data,
-                createdAt: new Date().toISOString(),
-            }
+            message: 'Order created successfully and saved to database',
+            data: savedOrder
         };
     }
 
@@ -98,7 +131,7 @@ export class NovacrustService {
 
             const firstName = data.first_name || firstNames[Math.floor(Math.random() * firstNames.length)];
             const lastName = data.last_name || lastNames[Math.floor(Math.random() * lastNames.length)];
-            const email = data.email || data.email_address || `${firstName.toLowerCase()}.${lastName.toLowerCase()}${Math.floor(Math.random() * 1000)}@example.com`;
+            const email = data.email || `${firstName.toLowerCase()}.${lastName.toLowerCase()}${Math.floor(Math.random() * 1000)}@example.com`;
             const phone = data.phone_number || `+234${Math.floor(7000000000 + Math.random() * 2000000000)}`;
             const country = data.country || 'NG';
             const city = data.city || cities[Math.floor(Math.random() * cities.length)];
@@ -132,6 +165,22 @@ export class NovacrustService {
                 },
                 httpsAgent: this.httpsAgent,
             });
+
+            // Persist to local DB
+            const customerData = response.data.data;
+            const customer = this.customerRepository.create({
+                novacrust_customer_id: customerData.uuid,
+                first_name: customerData.first_name,
+                last_name: customerData.last_name,
+                email: customerData.email,
+                phone_number: customerData.phone_number,
+                country: customerData.country,
+                customer_type: customerData.customer_type,
+                kyc_status: customerData.kyc_status,
+                metadata: customerData.metadata || payload.kyc_metadata,
+            });
+            await this.customerRepository.save(customer);
+
             return response.data;
         } catch (error) {
             const status = error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
@@ -150,6 +199,21 @@ export class NovacrustService {
                 },
                 httpsAgent: this.httpsAgent,
             });
+
+            // Persist to local DB
+            this.logger.debug(`Wallet generation response: ${JSON.stringify(response.data)}`);
+            const walletData = response.data.data || response.data;
+            const customer = await this.customerRepository.findOne({ where: { novacrust_customer_id: data.customer_id } });
+
+            const wallet = this.walletRepository.create({
+                novacrust_wallet_id: walletData.uuid,
+                address: walletData.address || walletData.deposit_address || walletData.wallet_address || (walletData.wallet ? walletData.wallet.address : null),
+                network: walletData.network?.name || walletData.network || 'unknown',
+                network_id: data.network_id,
+                customer: customer || undefined,
+            });
+            await this.walletRepository.save(wallet);
+
             return response.data;
         } catch (error) {
             const status = error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
@@ -199,8 +263,34 @@ export class NovacrustService {
     async handleDepositWebhook(data: DepositWebhookDto) {
         this.logger.log(`Received deposit webhook: ${JSON.stringify(data)}`);
 
+        // 0. Persist Deposit to DB
+        const wallet = await this.walletRepository.findOne({
+            where: { address: data.wallet.deposit_address },
+            relations: ['customer']
+        });
+
+        // Find associated order (logic can be refined: latest pending order for customer)
+        let order: Order | null = null;
+        if (wallet?.customer) {
+            order = await this.orderRepository.findOne({
+                where: { customer: { id: wallet.customer.id }, status: 'PENDING' },
+                order: { created_at: 'DESC' }
+            });
+        }
+
+        const deposit = this.depositRepository.create({
+            order: order || undefined,
+            wallet: wallet || undefined,
+            tx_reference: data.transaction_reference,
+            tx_hash: data.network_txid,
+            amount: parseFloat(data.amount),
+            fee: parseFloat(data.fee),
+            status: data.status,
+            raw_payload: data,
+        });
+        const savedDeposit = await this.depositRepository.save(deposit);
+
         // 1. Create Beneficiary (Mocking metadata extraction for now)
-        // In a real scenario, you'd fetch the order details associated with the wallet/user
         const beneficiaryData = {
             currency: 'ngn', // Defaulting to NGN for now as per example
             metadata: {
@@ -226,13 +316,29 @@ export class NovacrustService {
 
         const payoutResponse = await this.initiatePayout(payoutData);
 
+        // 3. Persist Payout to DB
+        const payout = this.payoutRepository.create({
+            deposit: savedDeposit,
+            beneficiary_id: beneficiaryId,
+            novacrust_payout_id: payoutResponse?.data?.id,
+            amount: parseFloat(data.amount),
+            status: 'PENDING'
+        });
+        await this.payoutRepository.save(payout);
+
+        // Update order status if linked
+        if (order) {
+            order.status = 'COMPLETED';
+            await this.orderRepository.save(order);
+        }
+
         return {
             success: true,
-            message: 'Webhook processed and payout initiated',
+            message: 'Webhook processed, data persisted and payout initiated',
             data: {
                 event: data.event,
                 transaction_reference: data.transaction_reference,
-                beneficiary_id: beneficiaryId,
+                deposit_id: savedDeposit.id,
                 payout_id: payoutResponse?.data?.id || 'MOCK_PAYOUT_ID',
                 timestamp: new Date().toISOString()
             }
