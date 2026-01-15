@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { IsOptional, IsEmail, IsString } from 'class-validator';
 
 export enum PaymentFrom {
     EXTERNAL_WALLET = 'external_wallet',
@@ -58,4 +59,10 @@ export class CreateOffRampOrderDto {
 
     @ApiProperty({ description: 'The payment method ID (UUID)', example: 'aff4b3da-fd7b-4202-b490-bda42e845173', required: false })
     payment_method_id?: string;
+
+    @ApiProperty({ description: 'The email address of the person initiating the order', example: 'initiator@example.com', required: false })
+    @IsOptional()
+    @IsEmail()
+    @IsString()
+    initiator_email?: string;
 }

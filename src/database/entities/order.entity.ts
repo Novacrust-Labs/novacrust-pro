@@ -45,6 +45,9 @@ export class Order {
     tx_reference: string;
 
     @Column({ nullable: true })
+    initiator_email: string;
+
+    @Column({ nullable: true })
     recipient_email_address: string;
 
     @Column({ nullable: true })

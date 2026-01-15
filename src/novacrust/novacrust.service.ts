@@ -132,6 +132,7 @@ export class NovacrustService {
             payout_metadata: data.payout_method_metadata || {},
             recipient_email_address: data.recipient_email_address,
             recipient_phone_number: data.recipient_phone_number,
+            initiator_email: data.initiator_email,
             status: 'PENDING',
         });
 
