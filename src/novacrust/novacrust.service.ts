@@ -213,9 +213,16 @@ export class NovacrustService {
                 kyc_status: customerData.kyc_status,
                 metadata: customerData.metadata || payload.kyc_metadata,
             });
-            await this.customerRepository.save(customer);
+            const savedCustomer = await this.customerRepository.save(customer);
 
-            return response.data;
+            return {
+                ...response.data,
+                data: {
+                    ...customerData,
+                    novacrust_customer_id: customerData.uuid,
+                    id: savedCustomer.id // Also returning local DB ID
+                }
+            };
         } catch (error) {
             const status = error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
             const message = error.response?.data?.message || error.message;
