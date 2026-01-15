@@ -9,7 +9,9 @@ import { Wallet } from './database/entities/wallet.entity.js';
 import { Order } from './database/entities/order.entity.js';
 import { Deposit } from './database/entities/deposit.entity.js';
 import { Payout } from './database/entities/payout.entity.js';
+import { Waitlist } from './database/entities/waitlist.entity.js';
 import { MailModule } from './mail/mail.module.js';
+import { WaitlistModule } from './waitlist/waitlist.module.js';
 
 @Module({
   imports: [
@@ -22,7 +24,7 @@ import { MailModule } from './mail/mail.module.js';
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
         url: configService.get<string>('DATABASE_URL'),
-        entities: [Customer, Wallet, Order, Deposit, Payout],
+        entities: [Customer, Wallet, Order, Deposit, Payout, Waitlist],
         synchronize: true, // WARNING: Set to false in production
         logging: true,
       }),
@@ -30,6 +32,7 @@ import { MailModule } from './mail/mail.module.js';
     }),
     NovacrustModule,
     MailModule,
+    WaitlistModule,
   ],
   controllers: [AppController],
   providers: [AppService],
