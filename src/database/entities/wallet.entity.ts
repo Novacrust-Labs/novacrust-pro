@@ -9,7 +9,7 @@ export class Wallet {
     @Column({ nullable: true })
     novacrust_wallet_id: string;
 
-    @Column()
+    @Column({ nullable: true })
     address: string;
 
     @Column()

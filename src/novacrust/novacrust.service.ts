@@ -247,10 +247,18 @@ export class NovacrustService {
             const walletData = response.data.data || response.data;
             const customer = await this.customerRepository.findOne({ where: { novacrust_customer_id: data.customer_id } });
 
+            const actualWallet = walletData.wallet || walletData;
+            const address = actualWallet.address || actualWallet.deposit_address || actualWallet.wallet_address || null;
+            const novacrustWalletId = actualWallet.uuid || actualWallet.id || null;
+
+            if (!address) {
+                this.logger.warn(`Novacrust API returned a null address for customer ${data.customer_id} on network ${data.network_id}. This record will be saved with a null address.`);
+            }
+
             const wallet = this.walletRepository.create({
-                novacrust_wallet_id: walletData.uuid,
-                address: walletData.address || walletData.deposit_address || walletData.wallet_address || (walletData.wallet ? walletData.wallet.address : null),
-                network: walletData.network?.name || walletData.network || 'unknown',
+                novacrust_wallet_id: novacrustWalletId,
+                address: address,
+                network: actualWallet.network?.name || actualWallet.network || 'unknown',
                 network_id: data.network_id,
                 customer: customer || undefined,
             });
