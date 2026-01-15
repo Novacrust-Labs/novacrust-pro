@@ -11,7 +11,7 @@ async function bootstrap() {
     .setTitle('Novacrust Pro Checkout API')
     .setDescription('The Novacrust Pro Checkout API description')
     .setVersion('1.0')
-    .addServer('http://localhost:3000', 'Local environment')
+    .addServer('http://localhost:8080', 'Local environment')
     .addServer('https://api.checkout-develop.novacrust.com', 'Development environment')
     .build();
   const document = SwaggerModule.createDocument(app, config);

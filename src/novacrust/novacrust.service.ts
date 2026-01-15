@@ -43,6 +43,15 @@ export class NovacrustService {
         this.logger.log(`NovacrustService initialized with baseUrl: ${this.baseUrl}`);
     }
 
+    private readonly networkLogoMap: Record<string, string> = {
+        bep20: 'https://cryptologos.cc/logos/bnb-bnb-logo.png',
+        erc20: 'https://cryptologos.cc/logos/ethereum-eth-logo.png',
+        trc20: 'https://cryptologos.cc/logos/tron-trx-logo.png',
+        solana: 'https://cryptologos.cc/logos/solana-sol-logo.png',
+        celo: 'https://cryptologos.cc/logos/celo-celo-logo.png',
+        optimism: 'https://cryptologos.cc/logos/optimism-ethereum-op-logo.png',
+    };
+
     async getAvailableChains() {
         try {
             const url = `${this.baseUrl}/business/open/crypto/networks`;
@@ -52,6 +61,15 @@ export class NovacrustService {
                 },
                 httpsAgent: this.httpsAgent,
             });
+
+            // Enrich with logos
+            if (response.data?.success && Array.isArray(response.data.data)) {
+                response.data.data = response.data.data.map((network: any) => ({
+                    ...network,
+                    logo: this.networkLogoMap[network.symbol?.toLowerCase()] || null,
+                }));
+            }
+
             return response.data;
         } catch (error) {
             const status = error.response?.status || HttpStatus.INTERNAL_SERVER_ERROR;
